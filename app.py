@@ -23,12 +23,16 @@ class NaverBlogCrawler:
             
             for blog in blog_lists[:post_count]:
                 try:
-                    # 제목 추출
-                    title_element = blog.select_one('div.detail_box > div.title_area > a')
-                    title = ''.join(title_element.stripped_strings) if title_element else ''
-                    
                     # 링크 추출
+                    title_element = blog.select_one('div.detail_box > div.title_area > a')
                     link = title_element.get('href') if title_element else ''
+                    
+                    # 네이버 블로그 URL이 아니면 건너뛰기
+                    if not link or 'blog.naver.com' not in link:
+                        continue
+                    
+                    # 제목 추출
+                    title = ''.join(title_element.stripped_strings) if title_element else ''
                     
                     # 작성자 추출
                     author_element = blog.select_one('div.user_box > div.user_box_inner > div > a')
@@ -39,7 +43,7 @@ class NaverBlogCrawler:
                     date = date_element.text.strip() if date_element else ''
                     
                     # 본문 내용 가져오기
-                    content = self.get_blog_content(link) if link else ''
+                    content = self.get_blog_content(link)
                     
                     blog_data = {
                         '번호': len(results) + 1,
@@ -47,7 +51,7 @@ class NaverBlogCrawler:
                         '작성자': author,
                         '작성일': date,
                         '링크': link,
-                        '본문': content[:200] + '...' if content else ''  # 본문 미리보기 200자로 제한
+                        '본문': content
                     }
                     
                     results.append(blog_data)
@@ -71,12 +75,18 @@ class NaverBlogCrawler:
             soup = BeautifulSoup(response.text, 'html.parser')
             
             if 'm.blog.naver.com' in url:
-                # 본문의 텍스트 컴포넌트들 추출
+                # 본문의 모든 텍스트 컴포넌트들 추출
                 main_container = soup.select_one('#viewTypeSelector > div > div.se-main-container')
                 if main_container:
-                    text_components = main_container.select('div.se-component.se-text')
-                    content = '\n'.join([comp.text.strip() for comp in text_components])
+                    # 텍스트 컴포넌트와 이미지 설명 모두 추출
+                    text_components = main_container.select('div.se-component.se-text, div.se-component.se-image div.se-caption')
+                    content = '\n\n'.join([comp.text.strip() for comp in text_components if comp.text.strip()])
                     return content
+                else:
+                    # 구버전 블로그 형식 처리
+                    old_content = soup.select_one('div#viewTypeSelector, div.se_component_wrap')
+                    if old_content:
+                        return old_content.text.strip()
             
             return ''
             
@@ -93,13 +103,13 @@ def main():
     수집된 데이터는 CSV 파일로 다운로드할 수 있습니다.
     """)
     
-    with st.expander("📌 사용 방법"):
-        st.markdown("""
-        1. 검색하고 싶은 키워드를 입력창에 입력하세요.
-        2. 수집할 게시글 수를 선택하세요.
-        3. '데이터 수집 시작' 버튼을 클릭하세요.
-        4. 크롤링이 완료되면 결과를 확인하고 CSV 파일로 다운로드할 수 있습니다.
-        """)
+    st.markdown("### 📌 사용 방법")
+    st.markdown("""
+    1. 검색하고 싶은 키워드를 입력창에 입력하세요.
+    2. 수집할 게시글 수를 선택하세요.
+    3. '데이터 수집 시작' 버튼을 클릭하세요.
+    4. 크롤링이 완료되면 결과를 확인하고 CSV 파일로 다운로드할 수 있습니다.
+    """)
     
     keyword = st.text_input("검색 키워드를 입력하세요", "")
     num_posts = st.slider("수집할 게시글 수", min_value=1, max_value=50, value=30)
