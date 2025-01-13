@@ -5,6 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 from urllib.parse import quote
+from io import BytesIO
 
 class NaverBlogCrawler:
     def __init__(self):
@@ -98,7 +99,36 @@ class NaverBlogCrawler:
             st.error(f"블로그 본문 가져오기 실패: {str(e)}")
             return ''
 
+def convert_to_excel(df):
+    try:
+        excel_buffer = BytesIO()
+        
+        # 엑셀 writer 객체 생성
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='블로그 데이터', index=False)
+            
+            # 열 너비 자동 조정
+            worksheet = writer.sheets['블로그 데이터']
+            for idx, col in enumerate(df.columns):
+                max_length = max(
+                    df[col].astype(str).apply(len).max(),
+                    len(str(col))
+                )
+                worksheet.column_dimensions[chr(65 + idx)].width = min(max_length + 2, 50)
+        
+        excel_data = excel_buffer.getvalue()
+        return excel_data
+    except Exception as e:
+        st.error(f"엑셀 변환 중 오류가 발생했습니다: {str(e)}")
+        return None
+
 def main():
+    # 세션 상태 초기화
+    if 'df' not in st.session_state:
+        st.session_state.df = None
+    if 'search_completed' not in st.session_state:
+        st.session_state.search_completed = False
+
     st.set_page_config(page_title="네이버 블로그 크롤러", page_icon="📝", layout="wide")
     
     st.title("네이버 블로그 크롤링 서비스")
@@ -125,19 +155,38 @@ def main():
             try:
                 crawler = NaverBlogCrawler()
                 with st.spinner('데이터를 수집하고 있습니다...'):
-                    df = crawler.search_blogs(keyword, num_posts)
+                    st.session_state.df = crawler.search_blogs(keyword, num_posts)
+                    st.session_state.search_completed = True
                     
-                st.success(f'총 {len(df)}개의 블로그 포스트를 수집했습니다!')
+                st.success(f'총 {len(st.session_state.df)}개의 블로그 포스트를 수집했습니다!')
                 
-                st.dataframe(df)
+                st.dataframe(st.session_state.df)
                 
-                csv = df.to_csv(index=False, encoding='utf-8-sig')
-                st.download_button(
-                    label="CSV 파일 다운로드",
-                    data=csv,
-                    file_name=f'naver_blog_{keyword}.csv',
-                    mime='text/csv'
-                )
+                st.markdown("### 📥 데이터 다운로드")
+                col1, col2 = st.columns(2)
+                
+                # CSV 다운로드 버튼
+                with col1:
+                    csv = st.session_state.df.to_csv(index=False, encoding='utf-8-sig')
+                    st.download_button(
+                        label="CSV 파일 다운로드 📄",
+                        data=csv,
+                        file_name=f'naver_blog_{keyword}.csv',
+                        mime='text/csv',
+                        help="CSV 형식으로 데이터를 다운로드합니다."
+                    )
+                
+                # Excel 다운로드 버튼
+                with col2:
+                    excel_data = convert_to_excel(st.session_state.df)
+                    if excel_data:
+                        st.download_button(
+                            label="Excel 파일 다운로드 📊",
+                            data=excel_data,
+                            file_name=f'naver_blog_{keyword}.xlsx',
+                            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            help="Excel 형식으로 데이터를 다운로드합니다."
+                        )
                 
             except Exception as e:
                 st.error(f'데이터 수집 중 오류가 발생했습니다: {str(e)}')
