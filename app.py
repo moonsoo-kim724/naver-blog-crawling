@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -17,7 +19,8 @@ class NaverBlogCrawler:
         
         try:
             response = requests.get(url, headers=self.headers)
-            soup = BeautifulSoup(response.text, 'html.parser')
+            response.encoding = 'utf-8'
+            soup = BeautifulSoup(response.text, 'html.parser', from_encoding='utf-8')
             
             blog_lists = soup.select('div.api_subject_bx ul > li')
             
@@ -72,7 +75,8 @@ class NaverBlogCrawler:
                 url = url.replace('blog.naver.com', 'm.blog.naver.com')
             
             response = requests.get(url, headers=self.headers)
-            soup = BeautifulSoup(response.text, 'html.parser')
+            response.encoding = 'utf-8'
+            soup = BeautifulSoup(response.text, 'html.parser', from_encoding='utf-8')
             
             if 'm.blog.naver.com' in url:
                 # 본문의 모든 텍스트 컴포넌트들 추출
